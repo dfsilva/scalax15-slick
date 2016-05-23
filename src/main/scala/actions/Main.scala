@@ -46,7 +46,7 @@ object Main {
 
   // Select actions -----------------------------
 
-  val selectAction =
+  val selectAction : DBIOAction[Seq[String], NoStream, Effect.Read] =
     AlbumTable
       .filter(_.artist === "Keyboard Cat")
       .map(_.title)
@@ -61,6 +61,8 @@ object Main {
       .filter(_.artist === "Keyboard Cat")
       .map(_.title)
       .update("Even Greater Hits")
+
+
 
   val updateAction2 =
     AlbumTable
@@ -81,10 +83,11 @@ object Main {
 
   // Insert actions -----------------------------
 
-  val insertOneAction =
+  val insertOneAction : DBIOAction[Int, NoStream, Effect.Write] =
     AlbumTable += Album("Pink Floyd", "Dark Side of the Moon", 1978, Rating.Awesome )
 
-  val insertAllAction =
+
+  val insertAllAction : DBIOAction[Option[Int], NoStream, Effect.Write] =
     AlbumTable ++= Seq(
       Album( "Keyboard Cat"  , "Keyboard Cat's Greatest Hits" , 2009 , Rating.Awesome ),
       Album( "Spice Girls"   , "Spice"                        , 1996 , Rating.Good    ),
@@ -93,12 +96,37 @@ object Main {
       Album( "Justin Bieber" , "Believe"                      , 2013 , Rating.Aaargh  ))
 
 
+  val faveBandAction : DBIOAction[Option[Int], NoStream, Effect.Write] =
+    AlbumTable ++= Seq(
+      Album("My Fave Band", "Album1", 2001, Rating.Awesome),
+      Album("My Fave Band", "Album2", 2002, Rating.Awesome),
+      Album("My Fave Band", "Album3", 2003, Rating.Awesome)
+    )
+
+  def disModernAlbums(year: Int) : DBIOAction[Int, NoStream, Effect.Write] =
+    AlbumTable.filter(_.year >= year)
+    .map(_.rating)
+    .update(Rating.Meh)
+
+  def deleteBackCatalogue(artist:String) : DBIOAction[Int, NoStream, Effect.Write] =
+    AlbumTable.filter(_.artist === artist).delete
+
+  def insertAlbum(artist: String, title: String, year: Int) : DBIOAction[Unit, NoStream, Effect.All] =
+  for{
+    existing <- AlbumTable.filter{
+      a => a.artist === artist && a.year < year
+    }.result
+
+    rating = existing.length match {
+      case 0 => Rating.Awesome
+      case _ => Rating.Meh
+    }
+    _ <- AlbumTable += Album(artist, title, year, rating)
+  } yield ()
 
   // Database -----------------------------------
 
   val db = Database.forConfig("scalaxdb")
-
-
 
   // Let's go! ----------------------------------
 
@@ -106,10 +134,18 @@ object Main {
     Await.result(db.run(action), 2 seconds)
 
   def main(args: Array[String]): Unit = {
-    exec(createTableAction)
-    exec(insertAllAction)
-    exec(insertOneAction)
-    exec(selectAction).foreach(println)
+    val entireDatabaseScript =
+    createTableAction andThen
+    insertAllAction andThen
+    insertOneAction andThen
+    faveBandAction andThen
+    disModernAlbums(2000) andThen
+    deleteBackCatalogue("Justin Bieber") andThen
+    insertAlbum("Keyboard Cat", "More Keyboard Cat Greatest Hits", 2010 ) andThen
+    AlbumTable.result
+
+    exec(entireDatabaseScript.transactionally).foreach(println)
   }
+
 
 }

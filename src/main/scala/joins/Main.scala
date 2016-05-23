@@ -90,6 +90,18 @@ object Main {
   }
 
 
+  val sortedImplicitInnerJoin: DBIOAction[Seq[(Artist, Album)], NoStream, Effect.Read] = {
+    val query : Query[(ArtistTable, AlbumTable), (Artist, Album), Seq] = for {
+      artist <- ArtistTable
+      album  <- AlbumTable if artist.id === album.artistId
+    } yield (artist, album)
+
+    query.sortBy{
+      case (artistTable, albumTable) =>
+        artistTable.name
+    }.result
+  }
+
 
   // Explicit joins -----------------------------
 
@@ -99,12 +111,17 @@ object Main {
       .result
 
 
+  val sortedExplicitInnerJoin: DBIOAction[Seq[(Artist, Album)], NoStream, Effect.Read] =
+    ArtistTable.join(AlbumTable)
+      .on     { case (artist, album) => artist.id === album.artistId }
+      .sortBy { case (artist, album) => artist.name }
+      .result
+
+
 
   // Database -----------------------------------
 
   val db = Database.forConfig("scalaxdb")
-
-
 
   // Let's go! ----------------------------------
 
@@ -119,8 +136,10 @@ object Main {
       createTablesAction andThen
       insertAllAction andThen
       DBIO.sequence(Seq(
-        implicitInnerJoin map (resultsToString("Implicit inner join: ")),
-        explicitInnerJoin map (resultsToString("Explicit inner join: "))
+        implicitInnerJoin       map (resultsToString("Implicit inner join: ")),
+        sortedImplicitInnerJoin map (resultsToString("Sorted Implicit inner join: ")),
+        explicitInnerJoin       map (resultsToString("Explicit inner join: ")),
+        sortedExplicitInnerJoin map (resultsToString("Sorted Explicit inner join: "))
       ))
 
     exec(everythingAction.transactionally).foreach(println)

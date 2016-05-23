@@ -47,7 +47,7 @@ object Main {
   val selectAllQuery =
     AlbumTable
 
-  val selectWhereQuery =
+  val selectWhereQuery : Query[AlbumTable, Album, Seq] =
     AlbumTable
       .filter(_.rating === (Rating.Awesome : Rating))
 
@@ -63,11 +63,11 @@ object Main {
     AlbumTable
       .drop(2).take(1)
 
-  val selectColumnsQuery1 =
+  val selectColumnsQuery1 : Query[Rep[String], String, Seq]=
     AlbumTable
       .map(_.title)
 
-  val selectColumnsQuery2 =
+  val selectColumnsQuery2 : Query[(Rep[String],Rep[String]), (String, String), Seq] =
     AlbumTable
       .map(a => (a.artist, a.title))
 
@@ -76,6 +76,16 @@ object Main {
       .filter(_.artist === "Keyboard Cat")
       .map(_.title)
 
+
+  val exercixe1Query : Query[AlbumTable, Album, Seq]  =
+    AlbumTable
+      .filter(a => a.year > 1990 && a.rating >= (Rating.NotBad : Rating))
+      .sortBy(_.artist)
+
+  val exercise2Query =
+    AlbumTable
+      .sortBy(_.year.asc)
+    .map(_.title)
 
 
   // Returning single/multiple results ----------
@@ -114,7 +124,7 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     createTestAlbums()
-    exec(selectCombinedQuery.result).foreach(println)
+    exec(exercise2Query.result).foreach(println)
   }
 
 }
